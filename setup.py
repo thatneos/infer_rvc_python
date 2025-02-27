@@ -20,7 +20,7 @@ setup(
         "torch",
         "torchaudio",
         "gradio",
-        "yt-dlp"
+        "yt-dlp",
         "audio-separator[gpu]==0.28.5",
         "praat-parselmouth>=0.4.3",
         "pyworld==0.3.2",

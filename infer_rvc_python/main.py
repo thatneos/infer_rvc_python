@@ -21,8 +21,78 @@ from infer_rvc_python.root_pipe import VC, change_rms, bh, ah
 import librosa
 from urllib.parse import urlparse
 import copy
+import logging
+from transformers import HubertModel
+import warnings
+
+# Remove this to see warnings about transformers models
+warnings.filterwarnings("ignore")
+
+logging.getLogger("fairseq").setLevel(logging.ERROR)
+logging.getLogger("faiss.loader").setLevel(logging.ERROR)
+logging.getLogger("transformers").setLevel(logging.ERROR)
+logging.getLogger("torch").setLevel(logging.ERROR)
 
 warnings.filterwarnings("ignore")
+
+
+now_dir = os.getcwd()
+sys.path.append(now_dir)
+
+
+class HubertModelWithFinalProj(HubertModel):
+    def __init__(self, config):
+        super().__init__(config)
+        self.final_proj = nn.Linear(config.hidden_size, config.classifier_proj_size)
+
+
+
+def load_embedding(embedder_model):
+    custom_embedder=None
+    embedder_root = os.path.join(now_dir)
+    embedding_list = {
+        "contentvec": os.path.join(embedder_root="contentvec"),
+        "chinese-hubert-base": os.path.join(embedder_root, "chinese_hubert_base"),
+        "japanese-hubert-base": os.path.join(embedder_root, "japanese_hubert_base"),
+        "korean-hubert-base": os.path.join(embedder_root, "korean_hubert_base"),
+    }
+
+    online_embedders = {
+        "contentvec": "https://huggingface.co/IAHispano/Applio/resolve/main/Resources/embedders/contentvec/pytorch_model.bin",
+        "chinese-hubert-base": "https://huggingface.co/IAHispano/Applio/resolve/main/Resources/embedders/chinese_hubert_base/pytorch_model.bin",
+        "japanese-hubert-base": "https://huggingface.co/IAHispano/Applio/resolve/main/Resources/embedders/japanese_hubert_base/pytorch_model.bin",
+        "korean-hubert-base": "https://huggingface.co/IAHispano/Applio/resolve/main/Resources/embedders/korean_hubert_base/pytorch_model.bin",
+    }
+
+    config_files = {
+        "contentvec": "https://huggingface.co/IAHispano/Applio/resolve/main/Resources/embedders/contentvec/config.json",
+        "chinese-hubert-base": "https://huggingface.co/IAHispano/Applio/resolve/main/Resources/embedders/chinese_hubert_base/config.json",
+        "japanese-hubert-base": "https://huggingface.co/IAHispano/Applio/resolve/main/Resources/embedders/japanese_hubert_base/config.json",
+        "korean-hubert-base": "https://huggingface.co/IAHispano/Applio/resolve/main/Resources/embedders/korean_hubert_base/config.json",
+    }
+
+    if embedder_model == "custom":
+        if os.path.exists(custom_embedder):
+            model_path = custom_embedder
+        else:
+            print(f"Custom embedder not found: {custom_embedder}, using contentvec")
+            model_path = embedding_list["contentvec"]
+    else:
+        model_path = embedding_list[embedder_model]
+        bin_file = os.path.join(model_path, "pytorch_model.bin")
+        json_file = os.path.join(model_path, "config.json")
+        os.makedirs(model_path, exist_ok=True)
+        if not os.path.exists(bin_file):
+            url = online_embedders[embedder_model]
+            print(f"Downloading {url} to {model_path}...")
+            wget.download(url, out=bin_file)
+        if not os.path.exists(json_file):
+            url = config_files[embedder_model]
+            print(f"Downloading {url} to {model_path}...")
+            wget.download(url, out=json_file)
+
+    models = HubertModelWithFinalProj.from_pretrained(model_path)
+    return models
 
 
 class Config:
@@ -104,7 +174,6 @@ class Config:
 
 BASE_DOWNLOAD_LINK = "https://huggingface.co/r3gm/sonitranslate_voice_models/resolve/main/"
 BASE_MODELS = [
-    "hubert_base.pt",
     "rmvpe.pt"
 ]
 BASE_DIR = "."
@@ -181,30 +250,10 @@ def download_manager(
 
 
 def load_hu_bert(config, hubert_path=None):
-    from fairseq import checkpoint_utils
-
-    if hubert_path is None:
-        hubert_path = ""
-    if not os.path.exists(hubert_path):
-        for id_model in BASE_MODELS:
-            download_manager(
-                os.path.join(BASE_DOWNLOAD_LINK, id_model), BASE_DIR
-            )
-        hubert_path = "hubert_base.pt"
-
-    models, _, _ = checkpoint_utils.load_model_ensemble_and_task(
-        [hubert_path],
-        suffix="",
-    )
-    hubert_model = models[0]
-    hubert_model = hubert_model.to(config.device)
-    if config.is_half:
-        hubert_model = hubert_model.half()
-    else:
-        hubert_model = hubert_model.float()
-    hubert_model.eval()
-
-    return hubert_model
+    hubert_embedder = "contentvec"
+    self.hubert_model = load_embedding(hubert_embedder)
+    self.hubert_model = self.hubert_model.to(self.config.device).float()
+    self.hubert_model.eval()
 
 
 def load_trained_model(model_path, config):

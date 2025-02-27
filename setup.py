@@ -5,7 +5,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="infer_rvc_python",
-    version="1.1.0",
+    version="1.2.0",
     description="Python wrapper for fast inference with rvc",
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
@@ -20,6 +20,8 @@ setup(
         "torch",
         "torchaudio",
         "gradio",
+        "yt-dlp"
+        "audio-separator[gpu]==0.28.5",
         "praat-parselmouth>=0.4.3",
         "pyworld==0.3.2",
         "faiss-cpu==1.7.3",

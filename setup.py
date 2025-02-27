@@ -36,7 +36,6 @@ setup_kwargs = {
         "transformers",
         "typeguard==4.2.0",
         "soundfile",
-        "librosa",
         "numpy",
     ],
     "include_package_data": True,
